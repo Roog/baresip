@@ -130,10 +130,10 @@ Distributed under BSD license
   - automatic network roaming
 
 * Management:
-  - Embedded web-server with HTTP interface
-  - Command-line console over UDP/TCP
-  - Command line interface (CLI)
   - Simple configuration files
+  - Command-line interface (CLI)
+  - Command-line console over UDP/TCP
+  - Embedded web-server with HTTP interface
   - MQTT (Message Queue Telemetry Transport) module
 
 * Profiles:
