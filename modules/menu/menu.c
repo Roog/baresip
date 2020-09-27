@@ -205,8 +205,11 @@ static int ua_print_call_status(struct re_printf *pf, void *unused)
 	return err;
 }
 
-static void clean_number(char* str)
+
+static void clean_number(char *str)
 {
+	int i = 0, k = 0;
+
 	/* only clean numeric numbers
 	 * In other cases trust the user input
 	 */
@@ -217,7 +220,6 @@ static void clean_number(char* str)
 	/* remove (0) which is in some mal-formated numbers
 	 * but only if trailed by another character
 	 */
-	int i = 0, k = 0;
 	if (str[0] == '+' || (str[0] == '0' && str[1] == '0'))
 		while (str[i]) {
 			if (str[i] == '('
@@ -469,6 +471,54 @@ static int cmd_ua_delete(struct re_printf *pf, void *arg)
 }
 
 
+#ifdef USE_TLS
+static int cmd_tls_issuer(struct re_printf *pf, void *unused)
+{
+	int err = 0;
+	struct mbuf *mb;
+
+	mb = mbuf_alloc(20);
+	if (!mb)
+		return ENOMEM;
+
+	err = tls_get_issuer(uag_tls(), mb);
+	if (err){
+		warning("menu: Unable to get certificate issuer (%m)\n", err);
+		goto out;
+	}
+
+	(void)re_hprintf(pf, "TLS Cert Issuer: %b\n", mb->buf, mb->pos);
+
+ out:
+	mem_deref(mb);
+	return err;
+}
+
+
+static int cmd_tls_subject(struct re_printf *pf, void *unused)
+{
+	int err = 0;
+	struct mbuf *mb;
+
+	mb = mbuf_alloc(20);
+	if (!mb)
+		return ENOMEM;
+
+	err = tls_get_subject(uag_tls(), mb);
+	if (err) {
+		warning("menu: Unable to get certificate subject (%m)\n", err);
+		goto out;
+	}
+
+	(void)re_hprintf(pf, "TLS Cert Subject: %b\n", mb->buf, mb->pos);
+
+ out:
+	mem_deref(mb);
+	return err;
+}
+#endif
+
+
 static int print_commands(struct re_printf *pf, void *unused)
 {
 	(void)unused;
@@ -525,6 +575,10 @@ static const struct cmd cmdv[] = {
 {"uanew",     0,    CMD_PRM, "Create User-Agent",       create_ua            },
 {"uadel",     0,    CMD_PRM, "Delete User-Agent",       cmd_ua_delete        },
 {"uafind",    0,    CMD_PRM, "Find User-Agent <aor>",   cmd_ua_find          },
+#ifdef USE_TLS
+{"tlsissuer", 0,          0, "TLS certificate issuer",  cmd_tls_issuer    },
+{"tlssubject",0,          0, "TLS certificate subject", cmd_tls_subject   },
+#endif
 {"ausrc",     0,    CMD_PRM, "Switch audio source",     switch_audio_source  },
 {"auplay",    0,    CMD_PRM, "Switch audio player",     switch_audio_player  },
 {"about",     0,          0, "About box",               about_box            },
@@ -836,6 +890,34 @@ static int call_video_debug(struct re_printf *pf, void *unused)
 }
 
 
+static int set_video_dir(struct re_printf *pf, void *arg)
+{
+	const struct cmd_arg *carg = arg;
+	int err = 0;
+
+	if (0 == str_cmp(carg->prm, sdp_dir_name(SDP_INACTIVE))) {
+		err = call_set_video_dir(ua_call(uag_current()), SDP_INACTIVE);
+	}
+	else if (0 == str_cmp(carg->prm, sdp_dir_name(SDP_SENDONLY))) {
+		err = call_set_video_dir(ua_call(uag_current()), SDP_SENDONLY);
+	}
+	else if (0 == str_cmp(carg->prm, sdp_dir_name(SDP_RECVONLY))) {
+		err = call_set_video_dir(ua_call(uag_current()), SDP_RECVONLY);
+	}
+	else if (0 == str_cmp(carg->prm, sdp_dir_name(SDP_SENDRECV))) {
+		err = call_set_video_dir(ua_call(uag_current()), SDP_SENDRECV);
+	}
+	else {
+		(void)re_hprintf(pf, "Invalid video direction %s"
+			" (inactive, sendonly, recvonly, sendrecv)\n",
+			carg->prm);
+		return EINVAL;
+	}
+
+	return err;
+}
+
+
 static int digit_handler(struct re_printf *pf, void *arg)
 {
 	const struct cmd_arg *carg = arg;
@@ -913,7 +995,7 @@ static int set_audio_bitrate(struct re_printf *pf, void *arg)
 {
 	struct cmd_arg *carg = arg;
 	struct call *call;
-	uint32_t bitrate = atoi(carg->prm);
+	uint32_t bitrate = str_isset(carg->prm) ? atoi(carg->prm) : 0;
 	int err;
 
 	call = ua_call(uag_current());
@@ -967,6 +1049,7 @@ static const struct cmd callcmdv[] = {
 {"statmode",    'S',       0, "Statusmode toggle",    toggle_statmode      },
 {"transfer",    't', CMD_PRM, "Transfer call",        call_xfer            },
 {"video_debug", 'V',       0, "Video stream",         call_video_debug     },
+{"video_dir",     0, CMD_PRM, "Set video direction",  set_video_dir        },
 
 /* Numeric keypad for DTMF events: */
 {NULL, '#',         0, NULL,                  digit_handler         },
@@ -1271,7 +1354,6 @@ static void ua_event_handler(struct ua *ua, enum ua_event ev,
 
 	case UA_EVENT_CALL_TRANSFER_FAILED:
 		info("menu: transfer failure: %s\n", prm);
-		mem_deref(call);
 		break;
 
 	case UA_EVENT_REGISTER_OK:
@@ -1288,7 +1370,6 @@ static void ua_event_handler(struct ua *ua, enum ua_event ev,
 
 	case UA_EVENT_AUDIO_ERROR:
 		info("menu: audio error (%s)\n", prm);
-		mem_deref(call);
 		break;
 
 	default:

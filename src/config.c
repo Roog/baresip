@@ -78,7 +78,7 @@ static struct config core_config = {
 	{
 		AF_UNSPEC,
 		"",
-		{ {""} },
+		{ {"",0} },
 		0
 	},
 };
@@ -806,6 +806,7 @@ int config_write_template(const char *file, const struct config *cfg)
 	(void)re_fprintf(f, "#module\t\t\t" "snapshot" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "swscale" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "vidinfo" MOD_EXT "\n");
+	(void)re_fprintf(f, "#module\t\t\t" "avfilter" MOD_EXT "\n");
 
 	(void)re_fprintf(f, "\n# Video source modules\n");
 #if defined (DARWIN)
@@ -933,10 +934,6 @@ int config_write_template(const char *file, const struct config *cfg)
 			"\n# Selfview\n"
 			"video_selfview\t\twindow # {window,pip}\n"
 			"#selfview_size\t\t64x64\n");
-
-	(void)re_fprintf(f,
-			"\n# ICE\n"
-			"ice_debug\t\tno\n");
 
 	(void)re_fprintf(f,
 			"\n# ZRTP\n"

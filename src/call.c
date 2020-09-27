@@ -349,10 +349,14 @@ static int update_audio(struct call *call)
 
 static int update_video(struct call *call)
 {
-	const struct sdp_format *sc;
+	const struct sdp_format *sc = NULL;
 	int err = 0;
 
-	sc = sdp_media_rformat(stream_sdpmedia(video_strm(call->video)), NULL);
+	struct sdp_media *m = stream_sdpmedia(video_strm(call->video));
+
+	if (!sdp_media_disabled(m))
+		sc = sdp_media_rformat(m, NULL);
+
 	if (sc) {
 		err = video_encoder_set(call->video, sc->data,
 					sc->pt, sc->params);
@@ -490,6 +494,8 @@ static void audio_error_handler(int err, const char *str, void *arg)
 	}
 
 	ua_event(call->ua, UA_EVENT_AUDIO_ERROR, call, "%d,%s", err, str);
+	call_stream_stop(call);
+	call_event_handler(call, CALL_EVENT_CLOSED, str);
 }
 
 
@@ -1008,6 +1014,9 @@ void call_hangup(struct call *call, uint16_t scode, const char *reason)
 		     sip_dialog_callid(sipsess_dialog(call->sess)),
 		     call->peer_uri);
 
+		if (call->not)
+			call_notify_sipfrag(call, 487, "Request Terminated");
+
 		call->sess = mem_deref(call->sess);
 		break;
 	}
@@ -1161,6 +1170,24 @@ int call_hold(struct call *call, bool hold)
 	FOREACH_STREAM
 		stream_hold(le->data, hold);
 
+	return call_modify(call);
+}
+
+
+/**
+ * Sets the video direction of the given call
+ *
+ * @param call  Call object
+ * @param dir   SDP media direction
+ *
+ * @return 0 if success, otherwise errorcode
+ */
+int call_set_video_dir(struct call *call, enum sdp_dir dir)
+{
+	if (!call)
+		return EINVAL;
+
+	stream_set_ldir(video_strm(call_video(call)), dir);
 	return call_modify(call);
 }
 

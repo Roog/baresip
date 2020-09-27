@@ -65,6 +65,7 @@ struct account {
 	char *outboundv[2];          /**< Optional SIP outbound proxies      */
 	uint32_t ptime;              /**< Configured packet time in [ms]     */
 	uint32_t regint;             /**< Registration interval in [seconds] */
+	uint32_t rwait;              /**< R. Int. in [%] from proxy expiry   */
 	uint32_t pubint;             /**< Publication interval in [seconds]  */
 	char *regq;                  /**< Registration Q-value               */
 	char *sipnat;                /**< SIP Nat mechanism                  */
@@ -347,6 +348,7 @@ int  stream_send(struct stream *s, bool ext, bool marker, int pt, uint32_t ts,
 void stream_update_encoder(struct stream *s, int pt_enc);
 int  stream_jbuf_stat(struct re_printf *pf, const struct stream *s);
 void stream_hold(struct stream *s, bool hold);
+void stream_set_ldir(struct stream *s, enum sdp_dir dir);
 void stream_set_srate(struct stream *s, uint32_t srate_tx, uint32_t srate_rx);
 void stream_send_fir(struct stream *s, bool pli);
 void stream_reset(struct stream *s);

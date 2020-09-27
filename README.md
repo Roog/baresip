@@ -6,7 +6,7 @@ baresip README
 
 
 Baresip is a portable and modular SIP User-Agent with audio and video support.
-Copyright (c) 2010 - 2020 Creytiv.com
+Copyright (c) 2010 - 2020 Alfred E. Heggestad and Contributors
 Distributed under BSD license
 
 
@@ -80,6 +80,7 @@ Distributed under BSD license
 
 * Audio-drivers:
   - Advanced Linux Sound Architecture (ALSA) audio-driver
+  - PulseAudio POSIX OSes audio-driver
   - Android OpenSLES audio-driver
   - Gstreamer playbin input audio-driver
   - JACK Audio Connection Kit audio-driver
@@ -114,14 +115,14 @@ Distributed under BSD license
   - Linux V4L/V4L2 video-source
   - X11 grabber video-source
   - DirectFB video-output
-  - OpenGL/OpenGLES video-output
+  - OpenGL video-output
   - SDL2 video-output
   - X11 video-output
 
 * NAT-traversal:
   - STUN support
   - TURN server support
-  - ICE and ICE-lite support
+  - ICE support
   - NATPMP support
   - PCP (Port Control Protocol) support
 
@@ -145,7 +146,7 @@ Distributed under BSD license
 baresip is using GNU makefiles, and the following packages must be
 installed before building:
 
-* [libre](https://github.com/creytiv/re)
+* [libre](https://github.com/baresip/re)
 * [librem](https://github.com/creytiv/rem)
 * [openssl](https://www.openssl.org/)
 
@@ -182,12 +183,6 @@ The config files in $HOME/.baresip are automatically generated
 the first time you run baresip.
 
 
-## Documentation
-
-The online documentation generated with doxygen is available in
-the main [website](http://creytiv.com/doxygen/baresip-dox/html/)
-
-
 ### Examples
 
 Configuration examples are available from the
@@ -203,8 +198,8 @@ The baresip project is using the 3-clause BSD license.
 ## Contributing
 
 Patches can be sent via Github
-[Pull-Requests](https://github.com/baresip/baresip/pulls) or to the RE devel
-[mailing-list](http://lists.creytiv.com/mailman/listinfo/re-devel).
+[Pull-Requests](https://github.com/baresip/baresip/pulls) or to the Baresip
+[mailing-list](https://groups.google.com/g/baresip).
 
 
 ## Design goals:
@@ -270,7 +265,6 @@ mwi           Message Waiting Indication
 natpmp        NAT Port Mapping Protocol (NAT-PMP) module
 omx           OpenMAX IL video display module
 opengl        OpenGL video output
-opengles      OpenGLES video output
 opensles      OpenSLES audio driver
 opus          OPUS Interactive audio codec
 oss           Open Sound System (OSS) audio driver
@@ -437,13 +431,12 @@ zrtp          ZRTP media encryption module
 ## Related projects
 
 * [libre](https://github.com/creytiv/re)
+* [libre - baresip fork](https://github.com/baresip/re)
 * [librem](https://github.com/creytiv/rem)
 * [retest](https://github.com/creytiv/retest)
-* [restund](http://creytiv.com/restund.html)
 
 
 ## References
 
-* Project homepage: http://www.creytiv.com/baresip.html
 * Github: https://github.com/baresip/baresip
-* Mailing-list: http://lists.creytiv.com/mailman/listinfo/re-devel
+* Mailing-list: https://groups.google.com/g/baresip

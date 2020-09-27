@@ -209,7 +209,10 @@ int reg_register(struct reg *reg, const char *reg_uri, const char *params,
 	if (err)
 		return err;
 
-	return 0;
+	if (acc->rwait)
+		err = sipreg_set_rwait(reg->sipreg, acc->rwait);
+
+	return err;
 }
 
 
@@ -301,7 +304,8 @@ int reg_status(struct re_printf *pf, const struct reg *reg)
 	if (!reg)
 		return 0;
 
-	return re_hprintf(pf, " %s %s", print_scode(reg->scode), reg->srv);
+	return re_hprintf(pf, " %s %s Expires %us", print_scode(reg->scode),
+			reg->srv, sipreg_proxy_expires(reg->sipreg));
 }
 
 

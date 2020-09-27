@@ -183,6 +183,7 @@ int  call_progress(struct call *call);
 void call_hangup(struct call *call, uint16_t scode, const char *reason);
 int  call_modify(struct call *call);
 int  call_hold(struct call *call, bool hold);
+int  call_set_video_dir(struct call *call, enum sdp_dir dir);
 int  call_send_digit(struct call *call, char key);
 bool call_has_audio(const struct call *call);
 bool call_has_video(const struct call *call);
@@ -812,6 +813,7 @@ const char  *uag_event_str(enum ua_event ev);
 struct list *uag_list(void);
 void         uag_current_set(struct ua *ua);
 struct ua   *uag_current(void);
+struct tls  *uag_tls(void);
 struct sipsess_sock  *uag_sipsess_sock(void);
 struct sipevent_sock *uag_sipevent_sock(void);
 

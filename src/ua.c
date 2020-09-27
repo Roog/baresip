@@ -431,6 +431,7 @@ static void call_event_handler(struct call *call, enum call_event ev,
 
 	case CALL_EVENT_TRANSFER_FAILED:
 		ua_event(ua, UA_EVENT_CALL_TRANSFER_FAILED, call, str);
+		mem_deref(call);
 		break;
 
 	case CALL_EVENT_MENC:
@@ -2249,6 +2250,21 @@ struct ua *uag_current(void)
 		return NULL;
 
 	return uag.ua_cur;
+}
+
+
+/**
+ * Get UAG-TLS Context
+ *
+ * @return TLS Context if used, NULL otherwise
+ */
+struct tls *uag_tls(void)
+{
+#ifdef USE_TLS
+	return uag.tls ? uag.tls : NULL;
+#else
+	return NULL;
+#endif
 }
 
 

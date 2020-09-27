@@ -89,7 +89,7 @@ USE_AVFORMAT := $(shell ([ -f $(SYSROOT)/include/libavformat/avformat.h ] || \
 	[ -f $(SYSROOT)/local/include/libavformat/avformat.h ] || \
 	[ -f $(SYSROOT)/include/$(MACHINE)/libavformat/avformat.h ] || \
 	[ -f $(SYSROOT_ALT)/include/libavformat/avformat.h ]) && \
-	([ -f $(SYSROOT)/include/libavformat/avdevice.h ] || \
+	([ -f $(SYSROOT)/include/libavdevice/avdevice.h ] || \
 	[ -f $(SYSROOT_LOCAL)/include/libavdevice/avdevice.h ] || \
 	[ -f $(SYSROOT)/local/include/libavdevice/avdevice.h ] || \
 	[ -f $(SYSROOT)/include/$(MACHINE)/libavdevice/avdevice.h ] || \
@@ -320,6 +320,9 @@ ifneq ($(USE_AVFORMAT),)
 MODULES   += avformat
 endif
 endif
+ifneq ($(USE_AVFILTER),)
+MODULES   += avfilter
+endif
 ifneq ($(USE_CAIRO),)
 MODULES   += cairo
 ifneq ($(USE_MPG123),)
@@ -395,9 +398,6 @@ MODULES   += mqtt
 endif
 ifneq ($(USE_OPENGL),)
 MODULES   += opengl
-endif
-ifneq ($(USE_OPENGLES),)
-MODULES   += opengles
 endif
 ifneq ($(USE_OPUS),)
 MODULES   += opus
