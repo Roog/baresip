@@ -10,7 +10,7 @@
 #
 
 PROJECT	  := baresip
-VERSION   := 0.6.6
+VERSION   := 1.0.0
 DESCR     := "Baresip is a modular SIP User-Agent with audio and video support"
 
 # Verbose and silent build modes
@@ -221,13 +221,22 @@ $(BIN):	$(APP_OBJS)
 		-L$(LIBRE_SO) -lre $(LIBS) -o $@
 
 
+#
+# List of modules used by selftest
+#
+ifneq ($(STATIC),)
+TEST_MODULES :=
+else
+TEST_MODULES := g711.so
+endif
+
 .PHONY: test
 test:	$(TEST_BIN)
 	./$(TEST_BIN)
 
-$(TEST_BIN):	$(STATICLIB) $(TEST_OBJS)
+$(TEST_BIN):	$(STATICLIB) $(TEST_OBJS) $(TEST_MODULES)
 	@echo "  LD      $@"
-	$(HIDE)$(LD) $(LFLAGS) $(TEST_OBJS) \
+	$(HIDE)$(LD) $(LFLAGS) $(APP_LFLAGS) $(TEST_OBJS) \
 		-L$(LIBRE_SO) -L. \
 		-l$(PROJECT) -lre $(LIBS) $(TEST_LIBS) -o $@
 
@@ -292,7 +301,7 @@ clean:
 
 .PHONY: ccheck
 ccheck:
-	@ccheck.pl > /dev/null
+	@test/ccheck.py
 
 version:
 	@perl -pi -e 's/BARESIP_VERSION.*/BARESIP_VERSION \"$(VERSION)"/' \

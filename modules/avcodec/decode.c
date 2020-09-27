@@ -132,6 +132,11 @@ static int init_decoder(struct viddec_state *st, const char *name)
 
 	st->ctx = avcodec_alloc_context3(st->codec);
 
+	/* TODO: If avcodec_h264dec is h264_mediacodec, extradata needs to
+           added to context that contains Sequence Parameter Set (SPS) and
+	   Picture Parameter Set (PPS), before avcodec_open2() is called.
+	*/
+
 	st->pict = av_frame_alloc();
 
 	if (!st->ctx || !st->pict)
@@ -691,7 +696,7 @@ int avcodec_decode_h265(struct viddec_state *vds, struct vidframe *frame,
 			hdr.nal_unit_type = fu.type;
 
 			err  = mbuf_write_mem(vds->mb, nal_seq, 3);
-			err = h265_nal_encode_mbuf(vds->mb, &hdr);
+			err |= h265_nal_encode_mbuf(vds->mb, &hdr);
 			if (err)
 				goto out;
 		}

@@ -442,7 +442,7 @@ int account_alloc(struct account **accp, const char *sipaddr)
 	if (acc->mnatid) {
 		acc->mnat = mnat_find(baresip_mnatl(), acc->mnatid);
 		if (!acc->mnat) {
-			warning("account: medianat not found: `%s'\n",
+			warning("account: medianat not found: '%s'\n",
 				acc->mnatid);
 		}
 	}
@@ -450,7 +450,7 @@ int account_alloc(struct account **accp, const char *sipaddr)
 	if (acc->mencid) {
 		acc->menc = menc_find(baresip_mencl(), acc->mencid);
 		if (!acc->menc) {
-			warning("account: mediaenc not found: `%s'\n",
+			warning("account: mediaenc not found: '%s'\n",
 				acc->mencid);
 		}
 	}
@@ -576,6 +576,37 @@ int account_set_regint(struct account *acc, uint32_t regint)
 
 
 /**
+ * Set the STUN server URI for a SIP account
+ *
+ * @param acc   User-Agent account
+ * @param uri   STUN server URI (NULL to reset)
+ *
+ * @return 0 if success, otherwise errorcode
+ */
+int account_set_stun_uri(struct account *acc, const char *uri)
+{
+	struct pl pl;
+	int err;
+
+	if (!acc)
+		return EINVAL;
+
+	acc->stun_host = mem_deref(acc->stun_host);
+
+	if (!uri)
+		return 0;
+
+	pl_set_str(&pl, uri);
+	err = stunuri_decode(&acc->stun_host, &pl);
+	if (err)
+		warning("account: decode '%r' failed: %m\n",
+			&pl, err);
+
+	return err;
+}
+
+
+/**
  * Set the stun host for a SIP account
  *
  * @param acc   User-Agent account
@@ -610,6 +641,50 @@ int account_set_stun_port(struct account *acc, uint16_t port)
 
 	if (acc->stun_host)
 		return stunuri_set_port(acc->stun_host, port);
+
+	return 0;
+}
+
+
+/**
+ * Set the STUN user for a SIP account
+ *
+ * @param acc   User-Agent account
+ * @param user  STUN username (NULL to reset)
+ *
+ * @return 0 if success, otherwise errorcode
+ */
+int account_set_stun_user(struct account *acc, const char *user)
+{
+	if (!acc)
+		return EINVAL;
+
+	acc->stun_user = mem_deref(acc->stun_user);
+
+	if (user)
+		return str_dup(&acc->stun_user, user);
+
+	return 0;
+}
+
+
+/**
+ * Set the STUN password for a SIP account
+ *
+ * @param acc   User-Agent account
+ * @param pass  STUN password (NULL to reset)
+ *
+ * @return 0 if success, otherwise errorcode
+ */
+int account_set_stun_pass(struct account *acc, const char *pass)
+{
+	if (!acc)
+		return EINVAL;
+
+	acc->stun_pass = mem_deref(acc->stun_pass);
+
+	if (pass)
+		return str_dup(&acc->stun_pass, pass);
 
 	return 0;
 }
@@ -708,6 +783,34 @@ int account_set_audio_codecs(struct account *acc, const char *codecs)
 		re_snprintf(buf, sizeof(buf), ";audio_codecs=%s", codecs);
 		pl_set_str(&pl, buf);
 		return audio_codecs_decode(acc, &pl);
+	}
+
+	return 0;
+}
+
+
+/**
+ * Sets video codecs
+ *
+ * @param acc      User-Agent account
+ * @param codecs   Comma separated list of video codecs (NULL to disable)
+ *
+ * @return 0 if success, otherwise errorcode
+ */
+int account_set_video_codecs(struct account *acc, const char *codecs)
+{
+	char buf[256];
+	struct pl pl;
+
+	if (!acc)
+		return EINVAL;
+
+	list_clear(&acc->vidcodecl);
+
+	if (codecs) {
+		re_snprintf(buf, sizeof(buf), ";video_codecs=%s", codecs);
+		pl_set_str(&pl, buf);
+		return video_codecs_decode(acc, &pl);
 	}
 
 	return 0;
@@ -1063,6 +1166,22 @@ const char *account_stun_pass(const struct account *acc)
 
 
 /**
+ * Get the STUN server URI of an account
+ *
+ * @param acc User-Agent account
+ *
+ * @return STUN server URI
+ */
+const struct stun_uri *account_stun_uri(const struct account *acc)
+{
+	if (!acc)
+		return NULL;
+
+	return acc->stun_host ? acc->stun_host : NULL;
+}
+
+
+/**
  * Get the STUN hostname of an account
  *
  * @param acc User-Agent account
@@ -1097,11 +1216,10 @@ uint16_t account_stun_port(const struct account *acc)
 static const char *answermode_str(enum answermode mode)
 {
 	switch (mode) {
-
-	case ANSWERMODE_MANUAL: return "manual";
-	case ANSWERMODE_EARLY:  return "early";
-	case ANSWERMODE_AUTO:   return "auto";
-	default: return "???";
+		case ANSWERMODE_MANUAL: return "manual";
+		case ANSWERMODE_EARLY:  return "early";
+		case ANSWERMODE_AUTO:   return "auto";
+		default: return "???";
 	}
 }
 
@@ -1253,9 +1371,9 @@ int account_debug(struct re_printf *pf, const struct account *acc)
 /**
  * Print the account information in JSON
  *
- * @param od  Account dict
+ * @param od     Account dict
  * @param odcfg  Configuration dict
- * @param acc User-Agent account
+ * @param acc    User-Agent account
  *
  * @return 0 if success, otherwise errorcode
  */
@@ -1274,6 +1392,8 @@ int account_json_api(struct odict *od, struct odict *odcfg,
 	if (acc->dispname) {
 		err |= odict_entry_add(od, "display_name", ODICT_STRING,
 				acc->dispname);
+	} else {
+		err |= odict_entry_add(od, "display_name", ODICT_STRING,"");
 	}
 
 	/* config */

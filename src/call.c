@@ -1,7 +1,7 @@
 /**
  * @file src/call.c  Call Control
  *
- * Copyright (C) 2010 Creytiv.com
+ * Copyright (C) 2020 Creytiv.com
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,17 +22,6 @@
 	for (le = call->streaml.head; le; le = le->next)
 
 
-/** Call States */
-enum state {
-	STATE_IDLE = 0,
-	STATE_INCOMING,
-	STATE_OUTGOING,
-	STATE_RINGING,
-	STATE_EARLY,
-	STATE_ESTABLISHED,
-	STATE_TERMINATED
-};
-
 /** SIP Call Control object */
 struct call {
 	MAGIC_DECL                /**< Magic number for debugging           */
@@ -47,7 +36,7 @@ struct call {
 	struct audio *audio;      /**< Audio stream                         */
 	struct video *video;      /**< Video stream                         */
 	struct media_ctx *ctx;    /**< Shared A/V source media context      */
-	enum state state;         /**< Call state                           */
+	enum call_state state;    /**< Call state                           */
 	char *local_uri;          /**< Local SIP uri                        */
 	char *local_name;         /**< Local display name                   */
 	char *peer_uri;           /**< Peer SIP Address                     */
@@ -82,23 +71,23 @@ struct call {
 static int send_invite(struct call *call);
 
 
-static const char *state_name(enum state st)
+static const char *state_name(enum call_state st)
 {
 	switch (st) {
-
-	case STATE_IDLE:        return "IDLE";
-	case STATE_INCOMING:    return "INCOMING";
-	case STATE_OUTGOING:    return "OUTGOING";
-	case STATE_RINGING:     return "RINGING";
-	case STATE_EARLY:       return "EARLY";
-	case STATE_ESTABLISHED: return "ESTABLISHED";
-	case STATE_TERMINATED:  return "TERMINATED";
-	default:                return "???";
+	case CALL_STATE_IDLE:        return "IDLE";
+	case CALL_STATE_INCOMING:    return "INCOMING";
+	case CALL_STATE_OUTGOING:    return "OUTGOING";
+	case CALL_STATE_RINGING:     return "RINGING";
+	case CALL_STATE_EARLY:       return "EARLY";
+	case CALL_STATE_ESTABLISHED: return "ESTABLISHED";
+	case CALL_STATE_TERMINATED:  return "TERMINATED";
+	case CALL_STATE_UNKNOWN:     return "UNKNOWN";
+	default:                     return "???";
 	}
 }
 
 
-static void set_state(struct call *call, enum state st)
+static void set_state(struct call *call, enum call_state st)
 {
 	call->state = st;
 }
@@ -305,7 +294,7 @@ static void mnat_handler(int err, uint16_t scode, const char *reason,
 	}
 
 	info("call: media-nat '%s' established/gathered\n",
-	     call->acc->mnatid);
+		 call->acc->mnatid);
 
 	/* Re-INVITE */
 	if (!call->mnat_wait) {
@@ -318,11 +307,11 @@ static void mnat_handler(int err, uint16_t scode, const char *reason,
 
 	switch (call->state) {
 
-	case STATE_OUTGOING:
+	case CALL_STATE_OUTGOING:
 		(void)send_invite(call);
 		break;
 
-	case STATE_INCOMING:
+	case CALL_STATE_INCOMING:
 		call_event_handler(call, CALL_EVENT_INCOMING, call->peer_uri);
 		break;
 
@@ -385,6 +374,7 @@ static int update_video(struct call *call)
 	else if (call->video) {
 		info("video stream is disabled..\n");
 		video_stop(call->video);
+		video_stop_display(call->video);
 	}
 
 	return err;
@@ -442,7 +432,7 @@ static void call_destructor(void *arg)
 {
 	struct call *call = arg;
 
-	if (call->state != STATE_IDLE)
+	if (call->state != CALL_STATE_IDLE)
 		print_summary(call);
 
 	call_stream_stop(call);
@@ -657,7 +647,7 @@ static void stream_error_handler(struct stream *strm, int err, void *arg)
 		sdp_media_name(stream_sdpmedia(strm)), err);
 
 	call->scode = 701;
-	set_state(call, STATE_TERMINATED);
+	set_state(call, CALL_STATE_TERMINATED);
 
 	call_stream_stop(call);
 	call_event_handler(call, CALL_EVENT_CLOSED, "rtp stream error");
@@ -738,7 +728,7 @@ int call_alloc(struct call **callp, const struct config *cfg, struct list *lst,
 
 	call->acc    = mem_ref(acc);
 	call->ua     = ua;
-	call->state  = STATE_IDLE;
+	call->state  = CALL_STATE_IDLE;
 	call->eh     = eh;
 	call->arg    = arg;
 	call->af     = prm->af;
@@ -948,7 +938,7 @@ int call_connect(struct call *call, const struct pl *paddr)
 	if (err)
 		return err;
 
-	set_state(call, STATE_OUTGOING);
+	set_state(call, CALL_STATE_OUTGOING);
 
 	/* If we are using asyncronous medianat like STUN/TURN, then
 	 * wait until completed before sending the INVITE */
@@ -1003,7 +993,7 @@ void call_hangup(struct call *call, uint16_t scode, const char *reason)
 
 	switch (call->state) {
 
-	case STATE_INCOMING:
+	case CALL_STATE_INCOMING:
 		if (scode < 400) {
 			scode = 486;
 			reason = "Rejected";
@@ -1022,7 +1012,7 @@ void call_hangup(struct call *call, uint16_t scode, const char *reason)
 		break;
 	}
 
-	set_state(call, STATE_TERMINATED);
+	set_state(call, CALL_STATE_TERMINATED);
 
 	call_stream_stop(call);
 }
@@ -1079,7 +1069,7 @@ int call_answer(struct call *call, uint16_t scode, enum vidmode vmode)
 	if (!call || !call->sess)
 		return EINVAL;
 
-	if (STATE_INCOMING != call->state) {
+	if (CALL_STATE_INCOMING != call->state) {
 		info("call: answer: call is not in incoming state (%s)\n",
 		     state_name(call->state));
 		return 0;
@@ -1088,7 +1078,8 @@ int call_answer(struct call *call, uint16_t scode, enum vidmode vmode)
 	if (vmode == VIDMODE_OFF)
 		call->video = mem_deref(call->video);
 
-	info("call: answering call from %s with %u\n", call->peer_uri, scode);
+	info("call: answering call on line %u from %s with %u\n",
+			call->linenum, call->peer_uri, scode);
 
 	if (call->got_offer) {
 
@@ -1235,42 +1226,6 @@ const char *call_peername(const struct call *call)
 }
 
 
-/**
- * Print the call debug information
- *
- * @param pf   Print function
- * @param call Call object
- *
- * @return 0 if success, otherwise errorcode
- */
-int call_debug(struct re_printf *pf, const struct call *call)
-{
-	int err;
-
-	if (!call)
-		return 0;
-
-	err = re_hprintf(pf, "===== Call debug (%s) =====\n",
-			 state_name(call->state));
-
-	/* SIP Session debug */
-	err |= re_hprintf(pf,
-			  " local_uri: %s <%s>\n"
-			  " peer_uri:  %s <%s>\n"
-			  " af=%s id=%s\n",
-			  call->local_name, call->local_uri,
-			  call->peer_name, call->peer_uri,
-			  net_af2name(call->af), call->id);
-	err |= re_hprintf(pf, " direction: %s\n",
-			  call->outgoing ? "Outgoing" : "Incoming");
-
-	/* SDP debug */
-	err |= sdp_session_debug(pf, call->sdp);
-
-	return err;
-}
-
-
 static int print_duration(struct re_printf *pf, const struct call *call)
 {
 	const uint32_t dur = call_duration(call);
@@ -1300,8 +1255,8 @@ int call_status(struct re_printf *pf, const struct call *call)
 
 	switch (call->state) {
 
-	case STATE_EARLY:
-	case STATE_ESTABLISHED:
+	case CALL_STATE_EARLY:
+	case CALL_STATE_ESTABLISHED:
 		break;
 	default:
 		return 0;
@@ -1409,6 +1364,8 @@ static int sipsess_offer_handler(struct mbuf **descp,
 
 	if (got_offer) {
 
+		call->got_offer = true;
+
 		/* Decode SDP Offer */
 		err = sdp_decode(call->sdp, msg->mb, true);
 		if (err) {
@@ -1436,6 +1393,8 @@ static int sipsess_answer_handler(const struct sip_msg *msg, void *arg)
 
 	debug("call: got SDP answer (%zu bytes)\n", mbuf_get_left(msg->mb));
 
+	call->got_offer = false;
+
 	if (msg_ctype_cmp(&msg->ctyp, "multipart", "mixed"))
 		(void)sdp_decode_multipart(&msg->ctyp.params, msg->mb);
 
@@ -1460,10 +1419,10 @@ static void sipsess_estab_handler(const struct sip_msg *msg, void *arg)
 
 	MAGIC_CHECK(call);
 
-	if (call->state == STATE_ESTABLISHED)
+	if (call->state == CALL_STATE_ESTABLISHED)
 		return;
 
-	set_state(call, STATE_ESTABLISHED);
+	set_state(call, CALL_STATE_ESTABLISHED);
 
 	call_stream_start(call, true);
 
@@ -1715,9 +1674,9 @@ int call_accept(struct call *call, struct sipsess_sock *sess_sock,
 
 		if (sa_af(raddr) != call->af) {
 			info("call: incompatible address-family"
-			     " (local=%s, remote=%s)\n",
-			     net_af2name(call->af),
-			     net_af2name(sa_af(raddr)));
+				 " (local=%s, remote=%s)\n",
+				 net_af2name(call->af),
+				 net_af2name(sa_af(raddr)));
 
 			sip_treply(NULL, uag_sip(), msg,
 				   488, "Not Acceptable Here");
@@ -1763,7 +1722,7 @@ int call_accept(struct call *call, struct sipsess_sock *sess_sock,
 	if (err)
 		return err;
 
-	set_state(call, STATE_INCOMING);
+	set_state(call, CALL_STATE_INCOMING);
 
 	/* New call */
 	if (call->config_call.local_timeout) {
@@ -1815,11 +1774,11 @@ static void sipsess_progr_handler(const struct sip_msg *msg, void *arg)
 	switch (msg->scode) {
 
 	case 180:
-		set_state(call, STATE_RINGING);
+		set_state(call, CALL_STATE_RINGING);
 		break;
 
 	case 183:
-		set_state(call, STATE_EARLY);
+		set_state(call, CALL_STATE_EARLY);
 		break;
 	}
 
@@ -2162,6 +2121,22 @@ uint16_t call_scode(const struct call *call)
 
 
 /**
+ * Get state of the call
+ *
+ * @param call Call object
+ *
+ * @return Call state or CALL_STATE_UNKNOWN if call object is NULL
+ */
+enum call_state call_state(const struct call *call)
+{
+	if (!call)
+		return CALL_STATE_UNKNOWN;
+
+	return call->state;
+}
+
+
+/**
  * Set the callback handlers for a call object
  *
  * @param call  Call object
@@ -2310,4 +2285,94 @@ void call_set_current(struct list *calls, struct call *call)
 
 	list_unlink(&call->le);
 	list_append(calls, &call->le, call);
+}
+
+
+/**
+ * Print the call debug information
+ *
+ * @param pf   Print function
+ * @param call Call object
+ *
+ * @return 0 if success, otherwise errorcode
+ */
+int call_debug(struct re_printf *pf, const struct call *call)
+{
+	int err;
+
+	if (!call)
+		return 0;
+
+	err = re_hprintf(pf, "===== Call debug (%s) =====\n",
+			 state_name(call->state));
+
+	/* SIP Session debug */
+	err |= re_hprintf(pf,
+			  " local_uri: %s <%s>\n"
+			  " peer_uri:  %s <%s>\n"
+			  " af=%s id=%s\n",
+			  call->local_name, call->local_uri,
+			  call->peer_name, call->peer_uri,
+			  net_af2name(call->af), call->id);
+	err |= re_hprintf(pf, " direction: %s\n",
+			  call->outgoing ? "Outgoing" : "Incoming");
+
+	/* SDP debug */
+	err |= sdp_session_debug(pf, call->sdp);
+
+	return err;
+}
+
+
+/**
+ * Print the call information in JSON
+ *
+ * @param od   Call dict
+ * @param call Ongoing call object
+ *
+ * @return 0 if success, otherwise errorcode
+ */
+int call_json_api(struct odict *od, const struct call *call)
+{
+	struct odict *sod = NULL;
+	int err = 0;
+
+	if (!call) {
+		err |= odict_entry_add(od, "state", ODICT_STRING,
+				state_name(CALL_STATE_IDLE));
+		return err;
+	}
+
+	err |= odict_alloc(&sod, 8);
+
+	err |= odict_entry_add(od, "id", ODICT_STRING,
+			call ? call->id : "--");
+	err |= odict_entry_add(od, "state", ODICT_STRING,
+			state_name(call->state));
+
+	if (call->peer_uri)
+		err |= odict_entry_add(od, "peer_uri", ODICT_STRING,
+				call->peer_uri);
+
+	if (call->peer_name)
+		err |= odict_entry_add(od, "peer_display_name", ODICT_STRING,
+				call->peer_name);
+
+	err |= odict_entry_add(od, "direction", ODICT_STRING,
+			call->outgoing ? "outgoing" : "incoming");
+	err |= odict_entry_add(od, "on_hold", ODICT_BOOL,
+			call->on_hold ? true : false);
+
+	err |= odict_entry_add(od, "start_time", ODICT_INT,
+			(int64_t)call->time_start);
+	err |= odict_entry_add(od, "request_time", ODICT_INT,
+			(int64_t)call->time_conn); //time_initiated
+
+	/* SDP parse */
+	err |= sdp_session_json_api(sod, call->sdp);
+	err |= odict_entry_add(od, "session", ODICT_OBJECT, sod);
+
+	mem_deref(sod);
+
+	return err;
 }

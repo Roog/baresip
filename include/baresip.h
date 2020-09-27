@@ -13,7 +13,7 @@ extern "C" {
 
 
 /** Defines the Baresip version string */
-#define BARESIP_VERSION "0.6.6"
+#define BARESIP_VERSION "1.0.0"
 
 
 #ifndef NET_MAX_NS
@@ -68,11 +68,15 @@ int account_set_sipnat(struct account *acc, const char *sipnat);
 int account_set_answermode(struct account *acc, enum answermode mode);
 int account_set_display_name(struct account *acc, const char *dname);
 int account_set_regint(struct account *acc, uint32_t regint);
+int account_set_stun_uri(struct account *acc, const char *uri);
 int account_set_stun_host(struct account *acc, const char *host);
 int account_set_stun_port(struct account *acc, uint16_t port);
+int account_set_stun_user(struct account *acc, const char *user);
+int account_set_stun_pass(struct account *acc, const char *pass);
 int account_set_mediaenc(struct account *acc, const char *mediaenc);
 int account_set_medianat(struct account *acc, const char *medianat);
 int account_set_audio_codecs(struct account *acc, const char *codecs);
+int account_set_video_codecs(struct account *acc, const char *codecs);
 int account_set_mwi(struct account *acc, const char *value);
 int account_set_call_transfer(struct account *acc, const char *value);
 int account_auth(const struct account *acc, char **username, char **password,
@@ -94,6 +98,7 @@ const char *account_sipnat(const struct account *acc);
 const char *account_stun_user(const struct account *acc);
 const char *account_stun_pass(const struct account *acc);
 const char *account_stun_host(const struct account *acc);
+const struct stun_uri *account_stun_uri(const struct account *acc);
 uint16_t account_stun_port(const struct account *acc);
 const char *account_mediaenc(const struct account *acc);
 const char *account_medianat(const struct account *acc);
@@ -148,6 +153,18 @@ enum call_event {
 	CALL_EVENT_MENC,
 };
 
+/** Call States */
+enum call_state {
+	CALL_STATE_IDLE = 0,
+	CALL_STATE_INCOMING,
+	CALL_STATE_OUTGOING,
+	CALL_STATE_RINGING,
+	CALL_STATE_EARLY,
+	CALL_STATE_ESTABLISHED,
+	CALL_STATE_TERMINATED,
+	CALL_STATE_UNKNOWN
+};
+
 /** Video mode */
 enum vidmode {
 	VIDMODE_OFF = 0,    /**< Video disabled                */
@@ -172,11 +189,13 @@ bool call_has_video(const struct call *call);
 int  call_transfer(struct call *call, const char *uri);
 int  call_status(struct re_printf *pf, const struct call *call);
 int  call_debug(struct re_printf *pf, const struct call *call);
+int  call_json_api(struct odict *od, const struct call *call);
 int  call_notify_sipfrag(struct call *call, uint16_t scode,
-			 const char *reason, ...);
+			   const char *reason, ...);
 void call_set_handlers(struct call *call, call_event_h *eh,
-		       call_dtmf_h *dtmfh, void *arg);
+			   call_dtmf_h *dtmfh, void *arg);
 uint16_t      call_scode(const struct call *call);
+enum call_state call_state(const struct call *call);
 uint32_t      call_duration(const struct call *call);
 uint32_t      call_setup_duration(const struct call *call);
 const char   *call_id(const struct call *call);
@@ -217,6 +236,7 @@ int custom_hdrs_apply(const struct list *hdrs, custom_hdrs_h *h, void *arg);
 typedef int (confline_h)(const struct pl *addr, void *arg);
 
 int  conf_configure(void);
+int  conf_configure_buf(const uint8_t *buf, size_t sz);
 int  conf_modules(void);
 void conf_path_set(const char *path);
 int  conf_path_get(char *path, size_t sz);
@@ -317,6 +337,7 @@ struct config_net {
 	char ifname[64];        /**< Bind to interface (optional)   */
 	struct {
 		char addr[64];
+		bool fallback;
 	} nsv[NET_MAX_NS];      /**< Configured DNS nameservers     */
 	size_t nsc;             /**< Number of DNS nameservers      */
 };
@@ -1222,6 +1243,7 @@ int  video_encoder_set(struct video *v, struct vidcodec *vc,
 int  video_start_source(struct video *v, struct media_ctx **ctx);
 int  video_start_display(struct video *v, const char *peer);
 void video_stop(struct video *v);
+void video_stop_display(struct video *v);
 int   video_set_fullscreen(struct video *v, bool fs);
 void  video_vidsrc_set_device(struct video *v, const char *dev);
 int   video_set_source(struct video *v, const char *name, const char *dev);
@@ -1233,6 +1255,7 @@ struct stream *video_strm(const struct video *v);
 double video_timestamp_to_seconds(uint64_t timestamp);
 uint64_t video_calc_timebase_timestamp(uint64_t rtp_ts);
 const struct vidcodec *video_codec(const struct video *vid, bool tx);
+void video_sdp_attr_decode(struct video *v);
 
 
 /*
@@ -1450,7 +1473,7 @@ static inline bool h264_is_keyframe(int type)
 
 
 int  module_preload(const char *module);
-int  module_load(const char *name);
+int  module_load(const char *path, const char *name);
 void module_unload(const char *name);
 void module_app_unload(void);
 
